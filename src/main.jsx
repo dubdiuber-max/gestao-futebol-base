@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useState} from "react";
 import{createRoot}from"react-dom/client";
 import{Activity,Users,Wallet,Trophy,CalendarDays,LogOut,Plus,Search,Menu,X,ShieldCheck,UserRound,Trash2,FileText,TrendingUp,CheckCircle,Eye,BarChart3}from"lucide-react";
 import{onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signInWithPopup,GoogleAuthProvider,signOut}from"firebase/auth";
-import{addDoc,collection,deleteDoc,doc,onSnapshot,orderBy,query,serverTimestamp,setDoc,updateDoc,where}from"firebase/firestore";
+import{addDoc,collection,deleteDoc,doc,getDoc,onSnapshot,orderBy,query,serverTimestamp,setDoc,updateDoc,where}from"firebase/firestore";
 import{getBlob,ref as storageRef,uploadBytes}from"firebase/storage";
 import{auth,db,storage,firebaseReady}from"./firebase";
 import"./style.css";
@@ -19,7 +19,7 @@ const[showForm,setShowForm]=useState(false),[showRegister,setShowRegister]=useSt
 const[search,setSearch]=useState(""),[ageFilter,setAgeFilter]=useState(""),[catFilter,setCatFilter]=useState(""),[posFilter,setPosFilter]=useState(""),[mobile,setMobile]=useState(false);
 const admin=profile?.role==="admin",parent=profile?.role==="parent";
 useEffect(()=>{if(!firebaseReady)return;return onAuthStateChanged(auth,u=>{setUser(u);setLoading(false);});},[]);
-useEffect(()=>{if(!user||!db)return;setProfile(null);setProfileError("");return onSnapshot(doc(db,"users",user.uid),s=>{setProfile(s.exists()?s.data():null);setProfileError(s.exists()?"":"O documento users/"+user.uid+" não existe neste projeto Firebase.");},e=>{setProfile(null);setProfileError("Falha ao consultar seu perfil no Firestore: "+e.code+" — "+e.message);});},[user]);
+useEffect(()=>{if(!user||!db)return;let active=true;let timer;setProfile(null);setProfileError("Consultando o perfil no Firestore...");const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error("TIMEOUT_FIRESTORE_PROFILE")),12000);});Promise.race([getDoc(doc(db,"users",user.uid)),timeout]).then(s=>{if(!active)return;if(s.exists()){setProfile(s.data());setProfileError("");}else{setProfile(null);setProfileError("O documento users/"+user.uid+" não existe neste projeto Firebase.");}}).catch(e=>{if(!active)return;setProfile(null);setProfileError(e.message==="TIMEOUT_FIRESTORE_PROFILE"?"Tempo esgotado: o Firestore não respondeu à leitura do perfil em 12 segundos. Verifique a conexão/requisição firestore.googleapis.com na aba Network.":"Falha ao consultar seu perfil no Firestore: "+(e.code||"sem código")+" — "+e.message);}).finally(()=>clearTimeout(timer));return()=>{active=false;clearTimeout(timer);};},[user]);
 useEffect(()=>{if(!user||!profile)return;const q=admin?query(collection(db,"athletes"),orderBy("createdAt","desc")):query(collection(db,"athletes"),where("parentUid","==",user.uid));return onSnapshot(q,s=>setAthletes(s.docs.map(d=>({id:d.id,...d.data()}))),e=>setNotice(e.message));},[user,profile,admin]);
 useEffect(()=>{if(!user||!selected)return;return onSnapshot(query(collection(db,"athletes",selected.id,"evaluations"),orderBy("createdAt","desc")),s=>setEvaluations(s.docs.map(d=>({id:d.id,...d.data()}))),()=>setEvaluations([]));},[user,selected]);
 const filtered=useMemo(()=>athletes.filter(a=>(!search||a.name?.toLowerCase().includes(search.toLowerCase()))&&(!ageFilter||String(ageOf(a.birthDate))===ageFilter)&&(!catFilter||a.category===catFilter)&&(!posFilter||a.position===posFilter)),[athletes,search,ageFilter,catFilter,posFilter]);
