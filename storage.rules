@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+ match /b/{bucket}/o {
+  function signedIn(){return request.auth!=null;}
+  function isAdmin(){return signedIn()&&firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role=="admin";}
+  function ownsAthlete(id){return signedIn()&&firestore.get(/databases/(default)/documents/athletes/$(id)).data.parentUid==request.auth.uid;}
+  match /athleteDocs/{uid}/{athleteId}/{fileName}{
+   allow read:if isAdmin()||(signedIn()&&request.auth.uid==uid&&ownsAthlete(athleteId));
+   allow create:if isAdmin()||(signedIn()&&request.auth.uid==uid&&ownsAthlete(athleteId)&&request.resource.size<10*1024*1024&&request.resource.contentType.matches('application/pdf|image/jpeg|image/png'));
+   allow update,delete:if isAdmin()||(signedIn()&&request.auth.uid==uid&&ownsAthlete(athleteId));
+  }
+ }
+}
