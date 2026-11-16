@@ -8,7 +8,7 @@ service cloud.firestore {
    allow create:if signedIn()&&request.auth.uid==uid&&request.resource.data.role=="parent";
    allow read:if signedIn()&&(request.auth.uid==uid||isAdmin());
    allow update:if isAdmin();
-   allow delete:false;
+   allow delete: if false;
   }
   match /athletes/{id}{
    allow create:if isAdmin()||(signedIn()&&request.resource.data.parentUid==request.auth.uid&&request.resource.data.status=="Pendente");
