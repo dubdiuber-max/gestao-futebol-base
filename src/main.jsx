@@ -1,95 +1,56 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { createRoot } from "react-dom/client";
-import { Activity, Users, Wallet, Trophy, CalendarDays, LogOut, Plus, Search, Menu, X, ShieldCheck, UserRound, Trash2, CircleDollarSign } from "lucide-react";
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
-import { auth, db, firebaseReady } from "./firebase";
-import "./style.css";
-
-const demoAthletes = [
-  { id:"demo1", name:"Davi Rodrigues", category:"Sub-12", position:"Zagueiro", phone:"", status:"Ativo" },
-  { id:"demo2", name:"Atleta exemplo", category:"Sub-14", position:"Meio-campo", phone:"", status:"Ativo" }
-];
-
-function App() {
-  const [user,setUser] = useState(null);
-  const [authLoading,setAuthLoading] = useState(firebaseReady);
-  const [email,setEmail] = useState("");
-  const [password,setPassword] = useState("");
-  const [isRegister,setIsRegister] = useState(false);
-  const [authError,setAuthError] = useState("");
-  const [active,setActive] = useState("Visão geral");
-  const [athletes,setAthletes] = useState(demoAthletes);
-  const [search,setSearch] = useState("");
-  const [showForm,setShowForm] = useState(false);
-  const [name,setName] = useState("");
-  const [category,setCategory] = useState("Sub-12");
-  const [position,setPosition] = useState("Zagueiro");
-  const [phone,setPhone] = useState("");
-  const [mobileMenu,setMobileMenu] = useState(false);
-  const demoMode = !firebaseReady;
-
-  useEffect(() => {
-    if (!firebaseReady) return;
-    return onAuthStateChanged(auth, current => { setUser(current); setAuthLoading(false); });
-  }, []);
-
-  useEffect(() => {
-    if (!user || !db) return;
-    const q = query(collection(db,"athletes"),orderBy("createdAt","desc"));
-    return onSnapshot(q,snap => setAthletes(snap.docs.map(d => ({id:d.id,...d.data()}))), () => {});
-  }, [user]);
-
-  const filtered = useMemo(() => athletes.filter(a => (a.name||"").toLowerCase().includes(search.toLowerCase()) || (a.category||"").toLowerCase().includes(search.toLowerCase())),[athletes,search]);
-  const activeCount = athletes.filter(a => a.status !== "Inativo").length;
-
-  async function handleAuth(e) {
-    e.preventDefault(); setAuthError("");
-    try {
-      if (isRegister) await createUserWithEmailAndPassword(auth,email,password);
-      else await signInWithEmailAndPassword(auth,email,password);
-    } catch (err) { setAuthError(err.code === "auth/invalid-credential" ? "E-mail ou senha incorretos." : err.message); }
-  }
-  async function googleLogin() {
-    setAuthError("");
-    try { await signInWithPopup(auth,new GoogleAuthProvider()); } catch(err) { setAuthError(err.message); }
-  }
-  async function addAthlete(e) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    const athlete = {name:name.trim(),category,position,phone,status:"Ativo",createdAt:serverTimestamp()};
-    if (user && db) await addDoc(collection(db,"athletes"),athlete);
-    else setAthletes(old => [{...athlete,id:crypto.randomUUID()},...old]);
-    setName("");setPhone("");setShowForm(false);
-  }
-  async function removeAthlete(id) {
-    if (!confirm("Deseja excluir este atleta?")) return;
-    if (user && db && !id.startsWith("demo")) await deleteDoc(doc(db,"athletes",id));
-    else setAthletes(old => old.filter(a => a.id !== id));
-  }
-
-  if (authLoading) return <div className="loading">Carregando Gestão Futebol de Base...</div>;
-  if (firebaseReady && !user) return <div className="login-wrap"><div className="login-card"><div className="brand-mark"><Trophy size={28}/></div><p className="eyebrow">GESTÃO ESPORTIVA</p><h1>Gestão Futebol de Base</h1><p className="muted">Organize sua escolinha em um só lugar.</p><form onSubmit={handleAuth}><label>E-mail</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="seu@email.com"/><label>Senha</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength="6" placeholder="Mínimo de 6 caracteres"/>{authError && <p className="error">{authError}</p>}<button className="primary full">{isRegister?"Criar conta":"Entrar"}</button></form><button className="google full" onClick={googleLogin}>Continuar com Google</button><p className="switch-auth">{isRegister?"Já tem conta?":"Ainda não tem conta?"} <button onClick={()=>setIsRegister(!isRegister)}>{isRegister?"Fazer login":"Criar acesso"}</button></p></div></div>;
-
-  const nav = [{label:"Visão geral",icon:Activity},{label:"Atletas",icon:Users},{label:"Mensalidades",icon:Wallet},{label:"Competições",icon:Trophy},{label:"Convocações",icon:CalendarDays}];
-  return <div className="app-shell">
-    <aside className={mobileMenu?"sidebar open":"sidebar"}><div className="side-brand"><div className="brand-mark small"><Trophy size={21}/></div><div><b>GESTÃO</b><span>FUTEBOL DE BASE</span></div><button className="close-menu" onClick={()=>setMobileMenu(false)}><X/></button></div><p className="nav-caption">MENU PRINCIPAL</p><nav>{nav.map(item=><button key={item.label} className={active===item.label?"nav-item selected":"nav-item"} onClick={()=>{setActive(item.label);setMobileMenu(false)}}><item.icon size={18}/>{item.label}</button>)}</nav><div className="side-bottom"><div className="admin-chip"><ShieldCheck size={18}/><div><b>Administrador</b><small>{demoMode?"Modo demonstração":user.email}</small></div></div>{!demoMode&&<button className="logout" onClick={()=>signOut(auth)}><LogOut size={17}/> Sair</button>}</div></aside>
-    <main className="main-area"><header className="topbar"><button className="menu-toggle" onClick={()=>setMobileMenu(true)}><Menu/></button><div><span className="crumb">Painel /</span> <b>{active}</b></div><div className="top-user"><span className="online-dot"></span>{demoMode?"Prévia do sistema":user.email}</div></header>
-      <section className="content"><div className="welcome-row"><div><p className="eyebrow">CENTRAL DE GESTÃO</p><h1>{active==="Visão geral"?"Visão geral":active}</h1><p className="muted">Acompanhe e organize sua escolinha de futebol.</p></div>{active==="Atletas"&&<button className="primary" onClick={()=>setShowForm(true)}><Plus size={18}/> Novo atleta</button>}</div>
-      {demoMode&&<div className="demo-alert"><ShieldCheck size={18}/> Você está visualizando a demonstração. Configure as variáveis Firebase na Vercel para ativar login e salvar os dados na nuvem.</div>}
-      {active==="Visão geral"&&<><div className="stats-grid"><Stat icon={Users} title="Atletas cadastrados" value={athletes.length} tone="blue"/><Stat icon={Activity} title="Atletas ativos" value={activeCount} tone="green"/><Stat icon={Wallet} title="Mensalidades" value="Em breve" tone="orange"/><Stat icon={Trophy} title="Competições" value="0" tone="purple"/></div><div className="panel"><div className="panel-head"><div><h2>Atletas recentes</h2><p className="muted">Últimos atletas cadastrados</p></div><button className="text-button" onClick={()=>setActive("Atletas")}>Ver todos</button></div><AthleteTable athletes={athletes.slice(0,5)} onDelete={removeAthlete}/></div></>}
-      {active==="Atletas"&&<div className="panel"><div className="panel-head"><div><h2>Cadastro de atletas</h2><p className="muted">{filtered.length} atleta(s) encontrado(s)</p></div><div className="searchbox"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar atleta ou categoria"/></div></div><AthleteTable athletes={filtered} onDelete={removeAthlete}/></div>}
-      {active==="Mensalidades"&&<Empty icon={CircleDollarSign} title="Controle de mensalidades" text="A próxima etapa será cadastrar valores, vencimentos, pagamentos e chave PIX da escolinha."/>}
-      {active==="Competições"&&<Empty icon={Trophy} title="Competições" text="Em breve: campeonatos, tabela de jogos, resultados e classificação."/>}
-      {active==="Convocações"&&<Empty icon={CalendarDays} title="Convocações" text="Em breve: selecione uma partida e monte a lista de atletas convocados."/>}
-      </section><footer>Gestão Futebol de Base <span>•</span> Organização e desenvolvimento dentro de campo.</footer>
-    </main>
-    {showForm&&<div className="modal-backdrop" onClick={()=>setShowForm(false)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="panel-head"><div><h2>Novo atleta</h2><p className="muted">Preencha os dados básicos.</p></div><button className="icon-button" onClick={()=>setShowForm(false)}><X/></button></div><form onSubmit={addAthlete}><label>Nome completo</label><input value={name} onChange={e=>setName(e.target.value)} required placeholder="Nome do atleta"/><div className="form-row"><div><label>Categoria</label><select value={category} onChange={e=>setCategory(e.target.value)}>{["Sub-7","Sub-9","Sub-11","Sub-12","Sub-13","Sub-14","Sub-15","Sub-17","Sub-20"].map(v=><option>{v}</option>)}</select></div><div><label>Posição</label><select value={position} onChange={e=>setPosition(e.target.value)}>{["Goleiro","Zagueiro","Lateral","Volante","Meio-campo","Atacante"].map(v=><option>{v}</option>)}</select></div></div><label>Telefone do responsável (opcional)</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="(00) 00000-0000"/><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowForm(false)}>Cancelar</button><button className="primary">Salvar atleta</button></div></form></div></div>}
-  </div>;
+import React,{useEffect,useMemo,useState} from "react";
+import{createRoot}from"react-dom/client";
+import{Activity,Users,Wallet,Trophy,CalendarDays,LogOut,Plus,Search,Menu,X,ShieldCheck,UserRound,Trash2,FileText,TrendingUp,CheckCircle,Eye,BarChart3}from"lucide-react";
+import{onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signInWithPopup,GoogleAuthProvider,signOut}from"firebase/auth";
+import{addDoc,collection,deleteDoc,doc,onSnapshot,orderBy,query,serverTimestamp,setDoc,updateDoc,where}from"firebase/firestore";
+import{getBlob,ref as storageRef,uploadBytes}from"firebase/storage";
+import{auth,db,storage,firebaseReady}from"./firebase";
+import"./style.css";
+const categories=["Sub-7","Sub-9","Sub-11","Sub-12","Sub-13","Sub-14","Sub-15","Sub-17","Sub-20"];
+const positions=["Goleiro","Zagueiro","Lateral","Volante","Meio-campo","Atacante"];
+const skills=["Velocidade","Passe","Finalização","Marcação","Domínio de bola","Condicionamento físico","Disciplina"];
+const ageOf=d=>d?Math.max(0,Math.floor((Date.now()-new Date(d+"T12:00:00").getTime())/31557600000)):"";
+const blankScores=Object.fromEntries(skills.map(s=>[s,3]));
+function App(){
+const[user,setUser]=useState(null),[profile,setProfile]=useState(null),[loading,setLoading]=useState(firebaseReady),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[error,setError]=useState("");
+const[athletes,setAthletes]=useState([]),[active,setActive]=useState("Visão geral"),[selected,setSelected]=useState(null),[evaluations,setEvaluations]=useState([]);
+const[name,setName]=useState(""),[birthDate,setBirthDate]=useState(""),[category,setCategory]=useState("Sub-12"),[position,setPosition]=useState("Zagueiro"),[phone,setPhone]=useState(""),[responsible,setResponsible]=useState(""),[files,setFiles]=useState([]);
+const[showForm,setShowForm]=useState(false),[showRegister,setShowRegister]=useState(false),[showEval,setShowEval]=useState(false),[scores,setScores]=useState(blankScores),[notes,setNotes]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("");
+const[search,setSearch]=useState(""),[ageFilter,setAgeFilter]=useState(""),[catFilter,setCatFilter]=useState(""),[posFilter,setPosFilter]=useState(""),[mobile,setMobile]=useState(false);
+const admin=profile?.role==="admin",parent=profile?.role==="parent";
+useEffect(()=>{if(!firebaseReady)return;return onAuthStateChanged(auth,u=>{setUser(u);setLoading(false);});},[]);
+useEffect(()=>{if(!user||!db)return;return onSnapshot(doc(db,"users",user.uid),s=>setProfile(s.exists()?s.data():null));},[user]);
+useEffect(()=>{if(!user||!profile)return;const q=admin?query(collection(db,"athletes"),orderBy("createdAt","desc")):query(collection(db,"athletes"),where("parentUid","==",user.uid));return onSnapshot(q,s=>setAthletes(s.docs.map(d=>({id:d.id,...d.data()}))),e=>setNotice(e.message));},[user,profile,admin]);
+useEffect(()=>{if(!user||!selected)return;return onSnapshot(query(collection(db,"athletes",selected.id,"evaluations"),orderBy("createdAt","desc")),s=>setEvaluations(s.docs.map(d=>({id:d.id,...d.data()}))),()=>setEvaluations([]));},[user,selected]);
+const filtered=useMemo(()=>athletes.filter(a=>(!search||a.name?.toLowerCase().includes(search.toLowerCase()))&&(!ageFilter||String(ageOf(a.birthDate))===ageFilter)&&(!catFilter||a.category===catFilter)&&(!posFilter||a.position===posFilter)),[athletes,search,ageFilter,catFilter,posFilter]);
+function resetForm(){setName("");setBirthDate("");setPhone("");setResponsible("");setFiles([]);}
+async function login(e){e.preventDefault();setError("");try{await signInWithEmailAndPassword(auth,email,password);}catch(x){setError("Não foi possível entrar. Confira e-mail e senha.");}}
+async function google(){try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(x){setError(x.message);}}
+async function registerParent(e){e.preventDefault();setBusy(true);setError("");try{const c=await createUserWithEmailAndPassword(auth,email,password);await setDoc(doc(db,"users",c.user.uid),{role:"parent",name:responsible,email,phone,createdAt:serverTimestamp()});const a=await addDoc(collection(db,"athletes"),{name,birthDate,category,position,phone,responsibleName:responsible,parentUid:c.user.uid,status:"Pendente",createdAt:serverTimestamp()});await uploadFiles(files,c.user.uid,a.id);setShowRegister(false);}catch(x){setError("Erro no cadastro: "+x.message);}setBusy(false);}
+async function uploadFiles(list,uid,athleteId){const docs=[];for(const f of list){if(f.size>10*1024*1024)continue;const safe=f.name.replace(/[^a-zA-Z0-9._-]/g,"_");const path="athleteDocs/"+uid+"/"+athleteId+"/"+Date.now()+"-"+safe;await uploadBytes(storageRef(storage,path),f,{contentType:f.type});docs.push({name:f.name,path,type:f.type,size:f.size});}if(docs.length)await updateDoc(doc(db,"athletes",athleteId),{documents:docs});}
+async function addAthlete(e){e.preventDefault();setBusy(true);try{const a=await addDoc(collection(db,"athletes"),{name,birthDate,category,position,phone,responsibleName:responsible,parentUid:"",status:"Ativo",createdAt:serverTimestamp(),createdBy:user.uid});await uploadFiles(files,user.uid,a.id);setShowForm(false);resetForm();setNotice("Atleta cadastrado.");}catch(x){setNotice("Erro: "+x.message);}setBusy(false);}
+async function evaluate(e){e.preventDefault();setBusy(true);try{await addDoc(collection(db,"athletes",selected.id,"evaluations"),{scores,notes,createdAt:serverTimestamp(),createdBy:user.uid,coachName:profile?.name||user.email});setShowEval(false);setScores(blankScores);setNotes("");}catch(x){setNotice(x.message);}setBusy(false);}
+async function status(a,s){try{await updateDoc(doc(db,"athletes",a.id),{status:s,reviewedAt:serverTimestamp()});}catch(x){setNotice(x.message);}}
+async function download(f){try{const b=await getBlob(storageRef(storage,f.path));const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=f.name;a.click();URL.revokeObjectURL(u);}catch(x){setNotice("Sem permissão para abrir o arquivo.");}}
+async function remove(id){if(confirm("Excluir este atleta?"))await deleteDoc(doc(db,"athletes",id));}
+if(loading)return <div className="loading">Carregando...</div>;
+if(firebaseReady&&!user)return <div className="login-wrap"><div className="login-card"><div className="brand-mark"><Trophy size={28}/></div><p className="eyebrow">GESTÃO ESPORTIVA</p><h1>Gestão Futebol de Base</h1><p className="muted">Acompanhe a formação e evolução do atleta.</p><form onSubmit={login}><label>E-mail</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/><label>Senha</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/>{error&&<p className="error">{error}</p>}<button className="primary full">Entrar</button></form><button className="google full" onClick={google}>Continuar com Google</button><button className="parent-register full" onClick={()=>setShowRegister(true)}>Cadastrar atleta como responsável</button></div>{showRegister&&<div className="modal-backdrop"><div className="modal"><h2>Cadastro do responsável e atleta</h2><form onSubmit={registerParent}><label>Nome do responsável</label><input value={responsible} onChange={e=>setResponsible(e.target.value)} required/><label>E-mail de acesso</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/><label>Senha</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength="6" required/><AthleteFields {...{name,setName,birthDate,setBirthDate,category,setCategory,position,setPosition,phone,setPhone,files,setFiles}}/><p className="muted">O cadastro ficará pendente até aprovação do gestor. Documentos privados, até 10 MB por arquivo.</p>{error&&<p className="error">{error}</p>}<div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowRegister(false)}>Cancelar</button><button className="primary" disabled={busy}>{busy?"Enviando...":"Criar cadastro"}</button></div></form></div></div>}</div>;
+if(firebaseReady&&!profile)return <div className="login-wrap"><div className="login-card"><h2>Perfil não configurado</h2><p className="muted">Solicite ao gestor a liberação do acesso administrativo ou cadastre-se como responsável.</p><button className="primary full" onClick={()=>signOut(auth)}>Sair</button></div></div>;
+const nav=admin?["Visão geral","Atletas","Desempenho","Mensalidades","Competições","Convocações"]:["Meus atletas","Desempenho"];
+const shown=selected||filtered[0];
+return <div className="app-shell"><aside className={mobile?"sidebar open":"sidebar"}><div className="side-brand"><div className="brand-mark small"><Trophy size={21}/></div><div><b>GESTÃO</b><span>FUTEBOL DE BASE</span></div><button className="close-menu" onClick={()=>setMobile(false)}><X/></button></div><p className="nav-caption">{admin?"ÁREA DO GESTOR":"ÁREA DO RESPONSÁVEL"}</p><nav>{nav.map((n,i)=><button className={active===n?"nav-item selected":"nav-item"} onClick={()=>{setActive(n);setMobile(false);setSelected(null);}}>{[<Activity/>,<Users/>,<TrendingUp/>,<Wallet/>,<Trophy/>,<CalendarDays/>][admin?i:i+1]}{n}</button>)}</nav><div className="side-bottom"><div className="admin-chip"><ShieldCheck size={18}/><div><b>{admin?"Gestor":"Responsável"}</b><small>{profile?.name||user.email}</small></div></div><button className="logout" onClick={()=>signOut(auth)}><LogOut size={17}/> Sair</button></div></aside>
+<main className="main-area"><header className="topbar"><button className="menu-toggle" onClick={()=>setMobile(true)}><Menu/></button><div><span className="crumb">Painel /</span> <b>{active}</b></div><div className="top-user"><span className="online-dot"/>{profile?.name||user.email}</div></header><section className="content"><div className="welcome-row"><div><p className="eyebrow">{admin?"CENTRAL DE GESTÃO":"ÁREA DA FAMÍLIA"}</p><h1>{active}</h1><p className="muted">{admin?"Gerencie cadastros e desenvolvimento.":"Consulte os dados e a evolução do atleta."}</p></div>{(active==="Atletas"||active==="Meus atletas")&&<button className="primary" onClick={()=>{resetForm();setShowForm(true);}}><Plus size={18}/> Cadastrar atleta</button>}</div>{notice&&<div className="notice" onClick={()=>setNotice("")}>{notice}<X size={15}/></div>}
+{active==="Visão geral"&&admin&&<><div className="stats-grid"><Stat icon={Users} title="Atletas" value={athletes.length}/><Stat icon={Activity} title="Ativos" value={athletes.filter(a=>a.status==="Ativo").length}/><Stat icon={ShieldCheck} title="Pendentes" value={athletes.filter(a=>a.status==="Pendente").length}/><Stat icon={Trophy} title="Categorias" value={new Set(athletes.map(a=>a.category)).size}/></div><div className="panel"><h2>Cadastros aguardando aprovação</h2><AthleteTable {...{athletes:athletes.filter(a=>a.status==="Pendente"),admin,status,remove,open:setSelected}}/></div></>}
+{(active==="Atletas"||active==="Meus atletas")&&<div className="panel"><div className="panel-head"><div><h2>{admin?"Todos os atletas":"Atletas da família"}</h2><p className="muted">{filtered.length} registro(s)</p></div></div><div className="filters"><div className="searchbox"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar atleta"/></div><select value={ageFilter} onChange={e=>setAgeFilter(e.target.value)}><option value="">Todas as idades</option>{Array.from({length:22},(_,i)=><option value={i}>{i} anos</option>)}</select><select value={catFilter} onChange={e=>setCatFilter(e.target.value)}><option value="">Todas categorias</option>{categories.map(c=><option>{c}</option>)}</select><select value={posFilter} onChange={e=>setPosFilter(e.target.value)}><option value="">Todas posições</option>{positions.map(p=><option>{p}</option>)}</select></div><AthleteTable {...{athletes:filtered,admin,status,remove,open:setSelected}}/></div>}
+{active==="Desempenho"&&<Performance athlete={shown} evaluations={evaluations} admin={admin} onEvaluate={()=>setShowEval(true)} onDownload={download} onSelect={setSelected} athletes={filtered}/>}
+{["Mensalidades","Competições","Convocações"].includes(active)&&<div className="empty-panel"><Trophy size={32}/><h2>{active}</h2><p>Módulo planejado para a próxima etapa do sistema.</p></div>}
+</section><footer>Gestão Futebol de Base • Desenvolvimento dentro e fora de campo.</footer></main>
+{showForm&&<div className="modal-backdrop"><div className="modal"><h2>Novo atleta</h2><form onSubmit={addAthlete}><AthleteFields {...{name,setName,birthDate,setBirthDate,category,setCategory,position,setPosition,phone,setPhone,files,setFiles}}/><label>Nome do responsável</label><input value={responsible} onChange={e=>setResponsible(e.target.value)}/><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowForm(false)}>Cancelar</button><button className="primary" disabled={busy}>{busy?"Salvando...":"Salvar atleta"}</button></div></form></div></div>}
+{showEval&&<div className="modal-backdrop"><div className="modal"><h2>Avaliação técnica · {selected?.name||shown?.name}</h2><form onSubmit={evaluate}>{skills.map(s=><div className="score-row"><label>{s}</label><select value={scores[s]} onChange={e=>setScores(v=>({...v,[s]:Number(e.target.value)}))}>{[1,2,3,4,5].map(n=><option value={n}>{n} / 5</option>)}</select></div>)}<label>Observações do treinador</label><textarea rows="3" value={notes} onChange={e=>setNotes(e.target.value)}/><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowEval(false)}>Cancelar</button><button className="primary" disabled={busy}>Salvar avaliação</button></div></form></div></div>}
+</div>;
 }
-
-function Stat({icon:Icon,title,value,tone}) { return <div className="stat-card"><div className={"stat-icon "+tone}><Icon size={21}/></div><div><p>{title}</p><strong>{value}</strong></div></div>; }
-function AthleteTable({athletes,onDelete}) { return <div className="table-wrap"><table><thead><tr><th>ATLETA</th><th>CATEGORIA</th><th>POSIÇÃO</th><th>STATUS</th><th></th></tr></thead><tbody>{athletes.length?athletes.map(a=><tr key={a.id}><td><div className="athlete-name"><span className="avatar"><UserRound size={17}/></span><b>{a.name}</b></div></td><td>{a.category}</td><td>{a.position}</td><td><span className="status">{a.status||"Ativo"}</span></td><td><button className="delete-btn" title="Excluir atleta" onClick={()=>onDelete(a.id)}><Trash2 size={16}/></button></td></tr>):<tr><td colSpan="5" className="empty-cell">Nenhum atleta cadastrado ainda.</td></tr>}</tbody></table></div>; }
-function Empty({icon:Icon,title,text}) { return <div className="empty-panel"><div className="empty-icon"><Icon size={30}/></div><h2>{title}</h2><p>{text}</p></div>; }
-
+function AthleteFields(p){return <><label>Nome completo do atleta</label><input value={p.name} onChange={e=>p.setName(e.target.value)} required/><div className="form-row"><div><label>Nascimento</label><input type="date" value={p.birthDate} onChange={e=>p.setBirthDate(e.target.value)} required/></div><div><label>Categoria</label><select value={p.category} onChange={e=>p.setCategory(e.target.value)}>{categories.map(c=><option>{c}</option>)}</select></div></div><label>Posição</label><select value={p.position} onChange={e=>p.setPosition(e.target.value)}>{positions.map(v=><option>{v}</option>)}</select><label>Telefone</label><input value={p.phone} onChange={e=>p.setPhone(e.target.value)}/><label>Documentos (PDF, JPG, PNG - até 10 MB cada)</label><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={e=>p.setFiles(Array.from(e.target.files||[]))}/>{p.files.length>0&&<small>{p.files.length} arquivo(s) selecionado(s)</small>}</>}
+function AthleteTable({athletes,admin,status,remove,open}){return <div className="table-wrap"><table><thead><tr><th>ATLETA</th><th>IDADE</th><th>CATEGORIA</th><th>POSIÇÃO</th><th>STATUS</th><th>AÇÕES</th></tr></thead><tbody>{athletes.length?athletes.map(a=><tr key={a.id}><td><b>{a.name}</b></td><td>{ageOf(a.birthDate)} anos</td><td>{a.category}</td><td>{a.position}</td><td><span className={a.status==="Pendente"?"status pending":"status"}>{a.status}</span></td><td><div className="table-actions"><button className="text-button" onClick={()=>open(a)}><Eye size={15}/> Ver</button>{admin&&a.status==="Pendente"&&<><button className="text-button" onClick={()=>status(a,"Ativo")}><CheckCircle size={15}/> Aprovar</button><button className="text-button danger" onClick={()=>status(a,"Correção solicitada")}>Corrigir</button></>}{admin&&<button className="delete-btn" onClick={()=>remove(a.id)}><Trash2 size={15}/></button>}</div></td></tr>):<tr><td colSpan="6" className="empty-cell">Nenhum atleta encontrado.</td></tr>}</tbody></table></div>}
+function Performance({athlete,evaluations,admin,onEvaluate,onDownload,onSelect,athletes}){if(!athlete)return <div className="empty-panel"><BarChart3/><h2>Sem atletas cadastrados</h2><p>Os gráficos aparecerão quando houver avaliações.</p></div>;const latest=evaluations[0];return <div className="performance-layout"><div className="panel athlete-summary"><div><p className="eyebrow">FICHA DO ATLETA</p><h2>{athlete.name}</h2><p className="muted">{ageOf(athlete.birthDate)} anos · {athlete.category} · {athlete.position}</p><span className="status">{athlete.status}</span></div>{admin&&<button className="primary" onClick={onEvaluate}><Plus size={16}/> Nova avaliação</button>}</div>{athletes.length>1&&<div className="panel"><label>Selecionar atleta</label><select value={athlete.id} onChange={e=>onSelect(athletes.find(a=>a.id===e.target.value))}>{athletes.map(a=><option value={a.id}>{a.name} · {a.category}</option>)}</select></div>}<div className="panel"><h2><BarChart3 size={18}/> Desempenho por fundamento</h2><p className="muted">Notas da avaliação mais recente, de 1 a 5.</p>{latest?<div className="skill-chart">{skills.map(s=><div className="skill-bar"><div><span>{s}</span><b>{latest.scores?.[s]||0}/5</b></div><div className="bar-track"><div className="bar-fill" style={{width:(latest.scores?.[s]||0)*20+"%"}}/></div></div>)}</div>:<p className="muted">Aguardando avaliação do treinador.</p>}</div><div className="panel"><h2>Histórico de avaliações</h2>{evaluations.length?evaluations.map(v=><div className="evaluation-item"><div><b>{v.createdAt?.toDate?v.createdAt.toDate().toLocaleDateString("pt-BR"):"Avaliação"}</b><p className="muted">{v.coachName||"Treinador"} {v.notes?"· "+v.notes:""}</p></div><strong>{(Object.values(v.scores||{}).reduce((a,b)=>a+b,0)/(Object.keys(v.scores||{}).length||1)).toFixed(1)}/5</strong></div>):<p className="muted">Nenhuma avaliação cadastrada.</p>}</div><div className="panel"><h2><FileText size={18}/> Documentos</h2>{athlete.documents?.length?athlete.documents.map(f=><div className="document-row"><span>{f.name}</span><button className="text-button" onClick={()=>onDownload(f)}>Baixar</button></div>):<p className="muted">Nenhum documento anexado.</p>}</div></div>}
+function Stat({icon:Icon,title,value}){return <div className="stat-card"><div className="stat-icon blue"><Icon size={20}/></div><div><p>{title}</p><strong>{value}</strong></div></div>}
 createRoot(document.getElementById("root")).render(<React.StrictMode><App/></React.StrictMode>);
