@@ -19,7 +19,7 @@ export const auth = app ? getAuth(app) : null;
 // Detecta automaticamente redes/proxies que bloqueiam o transporte WebChannel
 // padrão do Firestore e usa long polling quando necessário.
 export const db = app
-  ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true })
+  ? initializeFirestore(app, { experimentalForceLongPolling: true })
   : null;
 
 export const storage = app ? getStorage(app) : null;
