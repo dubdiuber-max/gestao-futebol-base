@@ -22,3 +22,10 @@ As regras em `firestore.rules` são apenas um ponto de partida. Antes de cadastr
 
 ## Estado atual
 MVP inicial: autenticação, painel, cadastro/listagem/exclusão de atletas e telas preparadas para mensalidades, competições e convocações. Pagamentos e notificações automáticas ainda não estão implementados.
+
+## Novos módulos em implementação
+- Portal de cadastro do responsável e atleta.
+- Envio de documentos privados pelo Firebase Storage.
+- Aprovação de cadastro pelo gestor.
+- Filtros por idade, categoria e posição.
+- Avaliações técnicas com histórico e gráfico individual para o responsável.
